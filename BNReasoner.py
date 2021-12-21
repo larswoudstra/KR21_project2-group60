@@ -19,7 +19,7 @@ class BNReasoner:
     @staticmethod
     def adjency_list(NXgraph) -> dict:
         '''
-        Return: dictionary with connection for all variables
+        :Return: dictionary with connection for all variables
         '''
         nodes = list(NXgraph.nodes)
 
@@ -46,7 +46,6 @@ class BNReasoner:
         '''
         test = copy.deepcopy(self.bn)
         test = test.structure.to_undirected()
-
         # Deleting Z's children
         for i in Z:
             for j in list(test.neighbors(i)):
@@ -94,22 +93,21 @@ class BNReasoner:
         X is a list of cpts that you want to multiply.
         Returns a factor of multiplied cpts.
         '''
-
         # factor is starting cpt
         factor = X[0]
 
+        # multiply this starting cpt with all other cpts in the list
         for index in range(1, len(X)):
             x = X[index]
+
+            # only multiply when there are matching variables
             column_x = [col for col in x.columns if col != 'p']
-
             column_factor = [col for col in factor.columns if col != 'p']
-
             match = list(set(column_x) & set(column_factor))
+
             if len(match) != 0:
                 df_mul = pd.merge(x, factor, how='left', on=match)
-
                 df_mul['p'] = (df_mul['p_x'] * df_mul['p_y'])
-
                 df_mul.drop(['p_x', 'p_y'],inplace=True, axis = 1)
 
                 factor = df_mul
@@ -133,7 +131,6 @@ class BNReasoner:
             # check whether node in evidence has children of which we can prune edges
             if self.bn.get_children(var) == []:
                 pass
-
             else:
                 for child in self.bn.get_children(var):
 
@@ -149,7 +146,9 @@ class BNReasoner:
         stop_pruning = False
 
         while not stop_pruning:
+
             stop_pruning = True
+
             for variable in self.bn.get_all_variables():
 
                 # leaf node should not be directly influencing Q or E (i.e. has no children)
@@ -162,15 +161,43 @@ class BNReasoner:
                         self.bn.del_var(variable)
                         stop_pruning = False
 
-    def MinDegreeOrder(self):
+
+    def RandomOrder(self, BN, Q):
+        """
+        Returns a list with a random order of variables from all the variables
+        in the BN, except the ones in the query (Q).
+        """
+
+        interaction = BN.bn.get_interaction_graph()
+        degree = dict((interaction.degree()))
+
+        # delete all variables off Q
+        if Q:
+            for variable in Q:
+                del degree[variable]
+
+        random_order = random.sample(list(degree), len(list(degree)))
+
+        return random_order
+
+    def MinDegreeOrder(self, BN, Q):
+        """
+        Returns an ordered list based upon the variable with the least amount
+        of neighbors in the BN
+        """
 
         # create interaction graph
-        interaction = self.bn.get_interaction_graph()
-        degree = list(interaction.degree())
-        order= []
+        interaction = BN.bn.get_interaction_graph()
+        degree = dict((interaction.degree()))
+        order = []
+
+        # delete all variables of Q
+        if Q:
+          for variable in Q:
+              del degree[variable]
+        degree = list(degree.items())
 
         for i in range(len(degree)):
-            degree = list(interaction.degree())
 
             # check smallest width
             node = self.smallest_degree(degree)
@@ -180,7 +207,72 @@ class BNReasoner:
             interaction.remove_node(list(node)[0])
             order.append((list(node.keys())[0]))
 
+            degree.remove(list(node.items())[0])
+
         return order
+
+    def MinFillOrder(self, BN, Q):
+        """
+        Returns an ordered list based upon the variable that causes the least
+        to be filled in edges when deleted
+        """
+
+        # create interaction graph
+        interaction = BN.bn.get_interaction_graph()
+        degree = dict((interaction.degree()))
+        order = []
+
+        # delete all variables of Q
+        if Q:
+          for variable in Q:
+              del degree[variable]
+        degree = list(degree.items())
+
+        for i in range(len(degree)):
+
+            # check node whose eliminations adds smallest number of edges
+            node = self.smallest_edges(interaction, degree)
+            self.connect_neighbors(interaction, node)
+
+            interaction.remove_node(list(node)[0])
+            order.append((list(node.keys())[0]))
+
+            degree = dict(degree)
+            del degree[str(list(node.keys())[0])]
+            degree = list(degree.items())
+
+        return order
+
+    def smallest_edges(self, interaction, degree):
+
+        smallest_edges = {}
+
+        for i in range(len(degree)):
+            if i == 0:
+                smallest_edges[degree[i][0]] = self.compute_edges(interaction, degree[i][0])
+
+            elif self.compute_edges(interaction, degree[i][0]) < smallest_edges.get(list(smallest_edges.keys())[0]):
+                smallest_edges = {}
+                smallest_edges[degree[i][0]] = self.compute_edges(interaction, degree[i][0])
+
+        return smallest_edges
+
+    def compute_edges(self, interaction, node):
+
+        edges = 0
+
+        neighbors = list(interaction.neighbors(node))
+
+        for i in range(len(neighbors)):
+            neighbors_i = list(interaction.neighbors(neighbors[i]))
+            if i+1 == len(neighbors):
+                break
+            for j in range(i+1, len(neighbors)):
+                if neighbors[j] not in neighbors_i:
+                    edges += 1
+
+        return edges
+
 
     def smallest_degree(self, degree):
         minimum = {}
@@ -227,7 +319,7 @@ class BNReasoner:
 
         return new_cpt
 
-    def marginal_dist(self, Q: list, E: dict, var: list) -> dict:
+    def marginal_dist(self, Q: list, E: dict, var: list, MAP = False, MPE = False) -> dict:
         '''
         Calculate the marginal distribution of Q given evidence E.
         :Param Q: list of variables in Q
@@ -262,7 +354,18 @@ class BNReasoner:
             # apply chain rule and eliminate all variables
             if len(factor_var) >= 2:
                 multiplied_cpt = self.MultiplyFactors(list(factor_var.values()))
+
                 new_cpt = self.sumOutVars(multiplied_cpt, [variable])
+
+                for factor_variable in factor_var:
+                    del S[factor_variable]
+
+                factor +=1
+                S["factor "+str(factor)] = new_cpt
+
+            # when there is only one cpt, don't multiply
+            elif len(factor_var) == 1:
+                new_cpt = self.sumOutVars(list(factor_var.values())[0], [variable])
 
                 for factor_variable in factor_var:
                     del S[factor_variable]
@@ -280,11 +383,11 @@ class BNReasoner:
 
     def MAP(self, Q: list, E: dict, var: list) -> dict:
         '''
-        Calculate the marginal distribution of Q given evidence E.
+        Calculate MAP of variables in Q given evidence E.
         :Param Q: list of variables in Q
         :Param E: list of variables in the evidence
         :Param var: ordered list of variables not in Q
-        :Return: marginal distribution
+        :Return: MAP
         '''
 
         # first, prune the network based on the query and the evidence:
@@ -304,7 +407,9 @@ class BNReasoner:
         # loop over every variable not in Q
         for variable in var:
             factor_var = {}
+
             for cpt_var in S:
+
                 if variable in S[cpt_var]:
                     factor_var[cpt_var] = S[cpt_var]
 
@@ -313,6 +418,16 @@ class BNReasoner:
                 multiplied_cpt = self.MultiplyFactors(list(factor_var.values()))
 
                 new_cpt = self.sumOutVars(multiplied_cpt, [variable])
+
+                for factor_variable in factor_var:
+                    del S[factor_variable]
+
+                factor +=1
+                S["factor "+str(factor)] = new_cpt
+
+            # when there is only one cpt, don't multiply
+            elif len(factor_var) == 1:
+                new_cpt = self.sumOutVars(list(factor_var.values())[0], [variable])
 
                 for factor_variable in factor_var:
                     del S[factor_variable]
@@ -329,11 +444,10 @@ class BNReasoner:
 
     def MPE(self, E: dict, var: list):
         '''
-        Calculate the marginal distribution of Q given evidence E.
-        :Param Q: list of variables in Q
+        Calculate the MPE given evidence E.
         :Param E: list of variables in the evidence
-        :Param var: ordered list of variables not in Q
-        :Return: marginal distribution
+        :Param var: ordered list of all variables in the BN
+        :Return: MPE
         '''
         Q = []
 
@@ -355,7 +469,9 @@ class BNReasoner:
         # loop over every variable not in Q
         for variable in var:
             factor_var = {}
+
             for cpt_var in S:
+
                 if variable in S[cpt_var]:
                     factor_var[cpt_var] = S[cpt_var]
 
