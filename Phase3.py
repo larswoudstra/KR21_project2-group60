@@ -20,47 +20,57 @@ import pandas as pd
 
 from copy import deepcopy
 
-
-reasoner = BNReasoner(r'use_case.BIFXML')
-
+# display graph
+reasoner = BNReasoner('use_case.BIFXML')
+reasoner.bn.draw_structure()
 variables = reasoner.bn.get_all_variables()
 print(variables)
 node_amount = len(variables)
 
-# create order
+# create a prior for stressed
 Min_Fill_Order_Prior = reasoner.MinFillOrder(reasoner, ['Stressed'])
-Min_Fill_Order_MAP = reasoner.MinFillOrder(reasoner, ['Pandemic'])
-Min_Fill_Order_MPE = reasoner.MinFillOrder(reasoner, [])
-
-# Calculate instances
 prior_stressed = reasoner.marginal_dist(['Stressed'], {}, Min_Fill_Order_Prior)
+print('Prior Stressed: ')
+display(prior_stressed)
+
+# create a prior for pandemic
+reasoner = BNReasoner('use_case.BIFXML')
+Min_Fill_Order_Prior = reasoner.MinFillOrder(reasoner, ['Pandemic'])
 prior_pandemic = reasoner.marginal_dist(['Pandemic'], {}, Min_Fill_Order_MAP)
-posterior = reasoner.marginal_dist(['Stressed'], {'Pandemic': True}, Min_Fill_Order_Prior)
-MAP = reasoner.MAP(['Pandemic'], {'Stressed': True}, Min_Fill_Order_MAP)
+print('Prior Pandemic: ')
+display(prior_pandemic)
+
+# create posterior distribution Pr(Stressed | Pandemic = True)
+reasoner = BNReasoner('use_case.BIFXML')
+Min_Fill_Order_Prior = reasoner.MinFillOrder(reasoner, ['Stressed'])
+posterior_stressed_true = reasoner.marginal_dist(['Stressed'], {'Pandemic': True}, Min_Fill_Order_Prior)
+print('Marginal distribution for stressed given pandemic = True: ')
+display(posterior_stressed_true)
+
+# create posterior distribution Pr(Stressed | Pandemic = False)
+reasoner = BNReasoner('use_case.BIFXML')
+Min_Fill_Order_Prior = reasoner.MinFillOrder(reasoner, ['Stressed'])
+posterior_stressed_false = reasoner.marginal_dist(['Stressed'], {'Pandemic': False}, Min_Fill_Order_Prior)
+print('Marginal distribution for stressed given pandemic = False: ')
+display(posterior_stressed_false)
+
+# create posterior distribution Pr(Busy | Pandemic = True)
+reasoner = BNReasoner('use_case.BIFXML')
+Min_Fill_Order_Prior = reasoner.MinFillOrder(reasoner, ['Busy'])
+posterior_busy = reasoner.marginal_dist(['Busy'], {'Pandemic': True}, Min_Fill_Order_Prior)
+print('Marginal distribution for busy given pandemic = True: ')
+display(posterior_busy)
+
+# create MAP Pr(Stressed | Pandemic = True)
+reasoner = BNReasoner('use_case.BIFXML')
+Min_Fill_Order_MAP = reasoner.MinFillOrder(reasoner, ['Stressed'])
+MAP = reasoner.MAP(['Stressed'], {'Pandemic': True}, Min_Fill_Order_MAP)
+print('Most likely instance for stressed when Pandemic = True ')
+display(MAP)
+
+# create MPE Pr(Stressed = True, Pandemic = True)
+reasoner = BNReasoner('use_case.BIFXML')
+Min_Fill_Order_MPE = reasoner.MinFillOrder(reasoner, [])
 MPE = reasoner.MPE({'Stressed': True, 'Pandemic': True}, Min_Fill_Order_MPE)
-
-# Print
-print(f'Prior Stressed: {prior_stressed}')
-print(f'Prior Pandemic: {prior_pandemic}')
-print(f'Posterior: \n {posterior}')
-print(f'MAP: \n {MAP}')
-print(f'MPE: \n {MPE}')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+print('Most likely instantiations when Stressed = True and Pandemic = True')
+display(MPE)
