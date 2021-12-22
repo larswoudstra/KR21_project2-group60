@@ -29,10 +29,8 @@ Here we give a brief description of the main methods in this class:
  
  - MinDegreeOrder(): Returns an ordered variable list with in which the variables are ordered based on the least number of neighbors.
  
- - smallest_degree(degree):
+ - MAP(Q,E,var): Accepts a list of variables to perform a Query (Q), a dictionary with Evidence (E), and a list of ordered variables (var) which do not appear in Q. Returns a dictionary with Most a Posteriori estimate queries.
  
- - MAP(Q,E,var): Accepts a list of variables to perform a Query (Q), a dictionary with Evidence (E), and a list of ordered variables (var) which do not appear in Q. Returns a pandas series with Most a Posteriori estimate queries.
- 
- - MEP(E, var): Accepts a dictionary with Evidence (E), and a list of ordered variables (var). Returns a pandas Series with Most Probable Explantions.
+ - MEP(E, var): Accepts a dictionary with Evidence (E), and a list of ordered variables (var). Returns a dictionary with Most Probable Explantions.
 
 Note: The functions network_pruning, marginal_dist, MAP and MEP update the reasoner that is created. Every time before running these functions, a new reasoner object should be created. 
