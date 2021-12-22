@@ -125,7 +125,7 @@ def test_normalized(input):
 MAIN
 """
 
-output = r'\output_1.txt'
+output = r'output_1.txt'
 lines = open(output).readlines()
 
 tm5 = []
