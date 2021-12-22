@@ -21,7 +21,7 @@ import pandas as pd
 from copy import deepcopy
 
 
-reasoner = BNReasoner(r'C:\Users\Stans\KR\KR21_project2\Networks_test\Twijfel\use_case.BIFXML')
+reasoner = BNReasoner(r'use_case.BIFXML')
 
 variables = reasoner.bn.get_all_variables()
 print(variables)
