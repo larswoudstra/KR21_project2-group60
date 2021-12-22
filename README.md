@@ -1,7 +1,7 @@
 ﻿# PGM Group 60
 
 This project was developed by: 
-[Stans Paulussen](https://canvas.vu.nl/groups/193220/users/169653), 
+[Stans Paulussen](https://canvas.vu.nl/groups/193220/users/169653)
 
 [Lars Woudstra](https://canvas.vu.nl/groups/193220/users/175984)
 
