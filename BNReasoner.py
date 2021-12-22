@@ -1,7 +1,9 @@
 from typing import Union
-from BayesNet import BayesNet
 import copy
 from itertools import product
+import random
+from BayesNet import BayesNet 
+
 
 class BNReasoner:
     def __init__(self, net: Union[str, BayesNet]):
@@ -16,11 +18,18 @@ class BNReasoner:
         else:
             self.bn = net
 
+    # TODO: This is where your methods should go
+
     @staticmethod
     def adjency_list(NXgraph) -> dict:
         '''
+        accepts a NXgraph and return a dictionary with every node as key
+        and a list of its neighbors as value.
+        :Param: NXgraph is a graph
         :Return: dictionary with connection for all variables
         '''
+        
+
         nodes = list(NXgraph.nodes)
 
         adj_list_1 = dict()
@@ -31,6 +40,9 @@ class BNReasoner:
                 for elem in l:
                     adj_list_2[n] = list(NXgraph.neighbors(elem))
 
+        # print(adj_list_1)
+        # print(adj_list_2)
+        
         adj_list = {key: adj_list_1[key] + adj_list_2[key] for key in adj_list_2}
         for key, value  in adj_list.items():
             print(f'Variabe {key} is dependent on {value}')
@@ -42,7 +54,7 @@ class BNReasoner:
         :Param X: list of variables
         :Param Y: list of variables
         :Param Z: list of variables
-        :Return: Either True d-speration or False not d-speration
+        :Return: Either True d-speration or False not d-speration 
         '''
         test = copy.deepcopy(self.bn)
         test = test.structure.to_undirected()
@@ -55,29 +67,40 @@ class BNReasoner:
         if X == Y:
             return False
 
+
         #checking d-speration
         adj_dict = BNReasoner.adjency_list(test)
         for variable,adjency_list in adj_dict.items():
             for var_x, var_y in zip(X,Y):
 
                 if var_x == variable:
+                    # print(var_x)
+                    # print(variable)
+
                     if var_y in adjency_list:
+                        # print(var_y)
+                        # print(adjency_list)
                         return print(f'{False} They are not dsep')
                     else:
+                        # print(adjency_list)
+                        # print(var_y)
                         return print(f'{True} They are dsep')
 
     def sumOutVars(self, cpt: pd.core.frame.DataFrame, Z:list) -> pd.core.frame.DataFrame:
         '''
         Removes every variable in Z from given cpt. Returns the newly formed cpt.
+        :Param cpt: A pandas data frame cpt table
+        :Param Z: A list of variables within the cpt 
+        :Return: A new cpt without variables in Z
         '''
         new_cpt = cpt
-
+        
         # go over every variable in Z
         for variable in Z:
 
-            # check if value is in the given cpt and the cpt is not only consisting of the variable itself
+            # check if value is in the given cpt and the cpt is not only consisting of the variable itself 
             if variable in new_cpt and len(new_cpt.columns) != 1:
-
+                    
                 # remove variable from the cpt by dropping both true and false instances
                 false_cpt = new_cpt[(new_cpt[variable] == False)].drop(variable, axis=1)
                 true_cpt = new_cpt[(new_cpt[variable] == True)].drop(variable, axis=1)
@@ -87,31 +110,32 @@ class BNReasoner:
                 new_cpt = pd.concat([false_cpt, true_cpt]).groupby(Y)['p'].sum().reset_index()
 
         return new_cpt
-
+    
     def MultiplyFactors(self, X: list) -> pd.core.frame.DataFrame:
         '''
-        X is a list of cpts that you want to multiply.
-        Returns a factor of multiplied cpts.
+        :Param X: Is a list of cpts that you want to multiply. 
+        :Return: A factor of multiplied cpts.
         '''
-        # factor is starting cpt
+        # factor is starting cpt 
         factor = X[0]
-
-        # multiply this starting cpt with all other cpts in the list
+        
         for index in range(1, len(X)):
             x = X[index]
-
-            # only multiply when there are matching variables
             column_x = [col for col in x.columns if col != 'p']
+            
             column_factor = [col for col in factor.columns if col != 'p']
+            
             match = list(set(column_x) & set(column_factor))
-
             if len(match) != 0:
                 df_mul = pd.merge(x, factor, how='left', on=match)
+
                 df_mul['p'] = (df_mul['p_x'] * df_mul['p_y'])
+
                 df_mul.drop(['p_x', 'p_y'],inplace=True, axis = 1)
-
+                    
+                
                 factor = df_mul
-
+        
         return factor
 
     def network_pruning(self, Q: list, E: dict) -> None:
@@ -120,34 +144,40 @@ class BNReasoner:
         :param Q: query variable.
         :param E: evidence variable with its truth value.
         '''
-
+        
         # edge pruning
         for var, truth_val in zip(E.keys(), E.values()):
 
             cpt = self.bn.get_cpt(var)
             cpt_update = self.bn.get_compatible_instantiations_table(pd.Series({var: truth_val}), cpt)
             self.bn.update_cpt(var, cpt_update)
-
+            
             # check whether node in evidence has children of which we can prune edges
             if self.bn.get_children(var) == []:
                 pass
+            
             else:
                 for child in self.bn.get_children(var):
-
+                    
                     # prune edge between evident node and its child
                     self.bn.del_edge((var, child))
-
+    
                     # update CPT
                     cpt = self.bn.get_cpt(child)
-                    cpt_update = self.bn.get_compatible_instantiations_table(pd.Series({var: truth_val}), cpt)
+                    cpt_update = self.bn.get_compatible_instantiations_table(pd.Series({var: truth_val}), cpt)           
                     self.bn.update_cpt(child, cpt_update)
-
+                
+         
+        
         # leaf node pruning
         stop_pruning = False
-
+        
         while not stop_pruning:
-
+            
             stop_pruning = True
+            
+            # self.bn.draw_structure()
+        
 
             for variable in self.bn.get_all_variables():
 
@@ -156,17 +186,13 @@ class BNReasoner:
 
                     # leaf node should not be in Q or E
                     if variable not in set(Q) and variable not in set(E.keys()):
-
+                        
                         # delete leaf node and make sure to run over all vars again to detect new leaf nodes
                         self.bn.del_var(variable)
-                        stop_pruning = False
+                        stop_pruning = False           
+        
 
-
-    def RandomOrder(self, BN, Q):
-        """
-        Returns a list with a random order of variables from all the variables
-        in the BN, except the ones in the query (Q).
-        """
+    def RandomOrder(self, BN, Q) -> list:
 
         interaction = BN.bn.get_interaction_graph()
         degree = dict((interaction.degree()))
@@ -180,11 +206,7 @@ class BNReasoner:
 
         return random_order
 
-    def MinDegreeOrder(self, BN, Q):
-        """
-        Returns an ordered list based upon the variable with the least amount
-        of neighbors in the BN
-        """
+    def MinDegreeOrder(self, BN, Q) -> list:
 
         # create interaction graph
         interaction = BN.bn.get_interaction_graph()
@@ -211,11 +233,7 @@ class BNReasoner:
 
         return order
 
-    def MinFillOrder(self, BN, Q):
-        """
-        Returns an ordered list based upon the variable that causes the least
-        to be filled in edges when deleted
-        """
+    def MinFillOrder(self, BN, Q) -> list:
 
         # create interaction graph
         interaction = BN.bn.get_interaction_graph()
@@ -243,7 +261,8 @@ class BNReasoner:
 
         return order
 
-    def smallest_edges(self, interaction, degree):
+
+    def smallest_edges(self, interaction, degree) -> dict:
 
         smallest_edges = {}
 
@@ -257,7 +276,7 @@ class BNReasoner:
 
         return smallest_edges
 
-    def compute_edges(self, interaction, node):
+    def compute_edges(self, interaction, node) -> int:
 
         edges = 0
 
@@ -274,7 +293,7 @@ class BNReasoner:
         return edges
 
 
-    def smallest_degree(self, degree):
+    def smallest_degree(self, degree) -> dict:
         minimum = {}
 
         for i in range(len(degree)):
@@ -286,7 +305,7 @@ class BNReasoner:
 
         return minimum
 
-    def connect_neighbors(self, interaction, node):
+    def connect_neighbors(self, interaction, node) -> None:
 
         neighbors = list(interaction.neighbors(list(node)[0]))
 
@@ -297,79 +316,88 @@ class BNReasoner:
             for j in range(i+1, len(neighbors)):
                 if neighbors[j] not in neighbors_i:
                     interaction.add_edge(neighbors[i], neighbors[j])
-
-    def maximizeOut(self, cpt: pd.DataFrame, var: str):
+                    
+    def maximizeOut(self, cpt: pd.DataFrame, var: str) -> pd.core.frame.DataFrame:
         '''
         Maximize out over a variable for a given conditional probability table; rows with max values are returned.
         :param variable: var to maximize out on.
         :param cpt: conditional probability table.
         '''
         new_cpt = cpt
-
-        # check if value is in the given cpt and the cpt is not only consisting of the variable itself
+        
+        # check if value is in the given cpt and the cpt is not only consisting of the variable itself 
         if var in new_cpt and len(new_cpt.columns) != 1:
-
+                    
             # remove variable from the cpt by dropping both true and false instances
             false_cpt = new_cpt[(new_cpt[var] == False)].drop(var, axis=1)
             true_cpt = new_cpt[(new_cpt[var] == True)].drop(var, axis=1)
+            
+            print("false_cpt is: ")
+            display(false_cpt)
+            print("true_cpt is: ")
+            display(true_cpt)
 
-            # get remaining variables and keep the maximum
+            # get remaining variables and keep the maximum 
             Y = [col for col in true_cpt.columns if col != 'p']
             new_cpt = pd.concat([false_cpt, true_cpt]).groupby(Y)['p'].max().reset_index()
-
+            
         return new_cpt
-
+                  
+    
     def marginal_dist(self, Q: list, E: dict, var: list, MAP = False, MPE = False) -> dict:
         '''
-        Calculate the marginal distribution of Q given evidence E.
+        Calculate the marginal distribution of Q given evidence E. 
         :Param Q: list of variables in Q
         :Param E: list of variables in the evidence
         :Param var: ordered list of variables not in Q
-        :Return: marginal distribution
+        :Return: marginal distribution  
         '''
-
+        
         # first, prune the network based on the query and the evidence:
         self.network_pruning(Q, E)
-
+        
         # get the probability of the evidence
         evidence_factor = 1
         for variable in E:
             cpt = self.bn.get_cpt(variable)
             evidence_factor *= self.bn.get_cpt(variable)['p'].sum()
-
+        
         # get all cpts in which the variable occurs
         S = self.bn.get_all_cpts()
-
+        
         factor = 0
 
         # loop over every variable not in Q
         for variable in var:
+            print("variable is: ", variable)
             factor_var = {}
-
+            
             for cpt_var in S:
-
+                
                 if variable in S[cpt_var]:
                     factor_var[cpt_var] = S[cpt_var]
-
-            # apply chain rule and eliminate all variables
+            
+            print("factor_var ", factor_var)
+            
+            # apply chain rule and eliminate all variables 
             if len(factor_var) >= 2:
                 multiplied_cpt = self.MultiplyFactors(list(factor_var.values()))
-
+                
                 new_cpt = self.sumOutVars(multiplied_cpt, [variable])
-
+                
                 for factor_variable in factor_var:
                     del S[factor_variable]
-
+                
                 factor +=1
                 S["factor "+str(factor)] = new_cpt
-
+            
             # when there is only one cpt, don't multiply
             elif len(factor_var) == 1:
                 new_cpt = self.sumOutVars(list(factor_var.values())[0], [variable])
 
                 for factor_variable in factor_var:
                     del S[factor_variable]
-
+                
                 factor +=1
                 S["factor "+str(factor)] = new_cpt
 
@@ -377,54 +405,54 @@ class BNReasoner:
             marginal_dist = self.MultiplyFactors(list(S.values()))
         else:
             marginal_dist = list(S.values())[0]
-
+        
         marginal_dist['p'] = marginal_dist['p'].div(evidence_factor)
         return marginal_dist
-
+    
     def MAP(self, Q: list, E: dict, var: list) -> dict:
         '''
-        Calculate MAP of variables in Q given evidence E.
+        Calculate the marginal distribution of Q given evidence E. 
         :Param Q: list of variables in Q
         :Param E: list of variables in the evidence
         :Param var: ordered list of variables not in Q
-        :Return: MAP
+        :Return: marginal distribution  
         '''
-
+        
         # first, prune the network based on the query and the evidence:
         self.network_pruning(Q, E)
-
+        
         # get the probability of the evidence
         evidence_factor = 1
         for variable in E:
             cpt = self.bn.get_cpt(variable)
             evidence_factor *= self.bn.get_cpt(variable)['p'].sum()
-
+        
         # get all cpts in which the variable occurs
         S = self.bn.get_all_cpts()
-
+        
         factor = 0
 
         # loop over every variable not in Q
         for variable in var:
             factor_var = {}
-
+            
             for cpt_var in S:
-
+                
                 if variable in S[cpt_var]:
                     factor_var[cpt_var] = S[cpt_var]
-
-            # apply chain rule and eliminate all variables
+            
+            # apply chain rule and eliminate all variables 
             if len(factor_var) >= 2:
                 multiplied_cpt = self.MultiplyFactors(list(factor_var.values()))
-
+                
                 new_cpt = self.sumOutVars(multiplied_cpt, [variable])
-
+                
                 for factor_variable in factor_var:
                     del S[factor_variable]
-
+                
                 factor +=1
                 S["factor "+str(factor)] = new_cpt
-
+                
             # when there is only one cpt, don't multiply
             elif len(factor_var) == 1:
                 new_cpt = self.sumOutVars(list(factor_var.values())[0], [variable])
@@ -434,63 +462,67 @@ class BNReasoner:
 
                 factor +=1
                 S["factor "+str(factor)] = new_cpt
-
+        
         if len(S) > 1:
             MAP = self.MultiplyFactors(list(S.values()))
         else:
             MAP = list(S.values())[0]
-
+            
         return MAP.iloc[MAP['p'].argmax()]
-
-    def MPE(self, E: dict, var: list):
+    
+    def MPE(self, E: dict, var: list) -> dict:
         '''
-        Calculate the MPE given evidence E.
+        Compute the most likely explanation given evidence E. 
         :Param E: list of variables in the evidence
-        :Param var: ordered list of all variables in the BN
-        :Return: MPE
+        :Param var: ordered list of variables
+        :Return: marginal distribution  
         '''
         Q = []
 
-
+        
         # first, prune the network based on the query and the evidence:
         self.network_pruning(Q, E)
-
+        
         # get the probability of the evidence
         evidence_factor = 1
         for variable in E:
             cpt = self.bn.get_cpt(variable)
             evidence_factor *= self.bn.get_cpt(variable)['p'].sum()
-
+        
         # get all cpts in which the variable occurs
         S = self.bn.get_all_cpts()
-
+        
         factor = 0
 
         # loop over every variable not in Q
         for variable in var:
+            # print("variable is: ", variable)
             factor_var = {}
-
+            
             for cpt_var in S:
-
+                
                 if variable in S[cpt_var]:
                     factor_var[cpt_var] = S[cpt_var]
-
-            # apply chain rule and eliminate all variables
+            
+            
+            
+            # apply chain rule and eliminate all variables 
             if len(factor_var) >= 2:
                 new_cpt = self.MultiplyFactors(list(factor_var.values()))
-
+                
                 for factor_variable in factor_var:
                     del S[factor_variable]
-
+                
                 factor +=1
                 S["factor "+str(factor)] = new_cpt
-
+        
         if len(S) > 1:
+            
             MPE = self.MultiplyFactors(list(S.values()))
-
+            
         else:
             MPE = list(S.values())[0]
-
+            
         MPE = MPE.iloc[MPE['p'].astype(float).argmax()]
-
+        
         return MPE
